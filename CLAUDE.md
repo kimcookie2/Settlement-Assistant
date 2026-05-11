@@ -111,15 +111,16 @@ src/utils/calculate.ts
 - 스토어 액션: `useStore((s) => s.actionName)` 셀렉터로 구독
 - 주석: 비자명한 WHY만, WHAT 설명 금지
 
-## 영수증 OCR (Naver CLOVA)
+## 영수증 OCR (Gemini 2.5 Flash, 멀티모달 LLM)
 
-차수 헤더의 "📷 영수증" 버튼 → 카메라/앨범에서 사진 → 클라이언트 리사이즈(최대 1600px, JPEG 0.85) → `/api/ocr`로 base64 전송 → Vercel 함수가 CLOVA Receipt OCR 호출 → `totalAmount` 자동 채움 + 술 키워드 매칭 항목 합계를 "술" 항목으로 자동 추가 (`payerIds: []`로 시작 → 사용자가 선택).
+차수 헤더의 "📷 영수증" 버튼 → 카메라/앨범에서 사진 → 클라이언트 리사이즈(최대 1600px, JPEG 0.85) → `/api/ocr`로 base64 전송 → Vercel 함수가 Gemini API에 이미지 + 프롬프트 전달 → `responseSchema`로 `{ totalAmount, alcoholAmount }` JSON 강제 → `applyReceipt`로 totalAmount 자동 채움 + 술 합계가 0보다 크면 "술" 항목 자동 추가 (`payerIds: []`로 시작, 사용자가 칩으로 부담자 선택).
 
 **환경 변수 (Vercel Project Settings)**
-- `CLOVA_OCR_INVOKE_URL` — Naver Cloud Console에서 OCR Domain 생성 후 발급된 Invoke URL
-- `CLOVA_OCR_SECRET_KEY` — 같은 도메인의 Secret Key
+- `GEMINI_API_KEY` — [aistudio.google.com/apikey](https://aistudio.google.com/apikey)에서 무료 발급
 
-**술 분류 로직**: `api/ocr.ts`의 `ALCOHOL_KEYWORDS` 배열에 키워드 추가/제거. 항목명을 공백 제거 후 `includes`로 부분 매치. 오탐/누락 시 사용자가 수동 편집.
+**술 분류 로직**: 키워드 매칭 없음. Gemini가 프롬프트만 보고 의미적으로 판단 ("참이슬"이 신제품이어도 LLM이 알아서 술로 분류). 프롬프트는 [api/ocr.ts](api/ocr.ts)의 `PROMPT` 상수에서 조정.
+
+**무료 티어 한도**: 분당 15회 / 일 1500회 (Gemini Flash 기준). 무료 티어는 입력이 모델 학습에 사용될 수 있음 — 민감한 영수증이면 유료 티어로 전환.
 
 **로컬 개발**: `pnpm dev`는 정적 서버라 `/api/*`가 동작 안 함. 로컬 OCR 테스트 필요 시 `vercel dev` (Vercel CLI) 사용. 그렇지 않으면 푸시 후 Vercel Preview에서 확인.
 

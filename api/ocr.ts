@@ -1,44 +1,30 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { randomUUID } from 'node:crypto'
 
-const ALCOHOL_KEYWORDS = [
-  '소주', '맥주', '막걸리', '청주', '사케', '와인', '위스키', '양주', '칵테일', '하이볼',
-  '참이슬', '처음처럼', '진로', '좋은데이', '잎새주', '화요', '안동소주',
-  '카스', '테라', '클라우드', '하이트', '켈리', '맥스', '필라이트', '한맥',
-  '호가든', '코로나', '칭타오', '아사히', '산미구엘', '기네스', '하이네켄',
-  '버드와이저', '블루문', '스텔라', '에델바이스', '삿포로', '기린',
-  '잭다니엘', '글렌피딕', '발렌타인', '로얄살루트', '시바스리갈', '맥캘란', '조니워커',
-  '샴페인', '동동주', '매실주', '복분자', '모히토', '진토닉', '잭콕',
-]
+const GEMINI_MODEL = 'gemini-2.5-flash'
 
-function isAlcohol(itemName: string): boolean {
-  const normalized = itemName.replace(/\s+/g, '')
-  return ALCOHOL_KEYWORDS.some((kw) => normalized.includes(kw))
+const PROMPT = `이 한국 영수증 사진을 분석해서 JSON으로 반환해주세요.
+
+추출할 정보:
+- totalAmount: 영수증의 최종 결제 금액 (정수, 원 단위, 쉼표 없이). 부가세 포함된 합계/결제금액으로 판단하세요.
+- alcoholAmount: 술 항목들의 합계 금액 (정수, 원 단위). 소주·맥주·막걸리·청주·사케·와인·위스키·양주·칵테일·하이볼·샴페인 등 모든 알코올 음료를 포함합니다. 콜라·사이다·주스·커피 등 비알코올 음료는 제외하세요. 술 항목이 없거나 판별 불가하면 0.
+
+금액 인식이 불가능하면 해당 필드는 0으로 반환하세요.`
+
+const RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    totalAmount: { type: 'integer' },
+    alcoholAmount: { type: 'integer' },
+  },
+  required: ['totalAmount', 'alcoholAmount'],
 }
 
-function readPriceText(node: unknown): string {
-  if (!node || typeof node !== 'object') return '0'
-  const n = node as { formatted?: { value?: string }; text?: string }
-  return n.formatted?.value ?? n.text ?? '0'
-}
-
-function parsePrice(value: string): number {
-  const num = parseInt(value.replace(/[^\d]/g, ''), 10)
-  return Number.isNaN(num) ? 0 : num
-}
-
-interface OcrItem {
-  name?: { text?: string }
-  price?: { price?: { text?: string; formatted?: { value?: string } } }
-}
-
-interface OcrSubResult {
-  items?: OcrItem[]
-}
-
-interface OcrReceiptResult {
-  totalPrice?: { price?: { text?: string; formatted?: { value?: string } } }
-  subResults?: OcrSubResult[]
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> }
+    finishReason?: string
+  }>
+  promptFeedback?: { blockReason?: string }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,72 +33,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const invokeUrl = process.env.CLOVA_OCR_INVOKE_URL
-  const secretKey = process.env.CLOVA_OCR_SECRET_KEY
-
-  if (!invokeUrl || !secretKey) {
-    res.status(500).json({ error: 'OCR가 설정되지 않았습니다 (환경 변수 누락)' })
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    res.status(500).json({ error: 'GEMINI_API_KEY 환경 변수가 설정되지 않았습니다' })
     return
   }
 
   const body = req.body as { imageBase64?: string; format?: string } | undefined
   const imageBase64 = body?.imageBase64
-  const format = (body?.format ?? 'jpg').toLowerCase()
-
   if (!imageBase64) {
     res.status(400).json({ error: '이미지가 누락되었습니다' })
     return
   }
 
-  const ocrPayload = {
-    version: 'V2',
-    requestId: randomUUID(),
-    timestamp: Date.now(),
-    images: [
+  const format = (body?.format ?? 'jpg').toLowerCase()
+  const mimeType =
+    format === 'png' ? 'image/png' : format === 'webp' ? 'image/webp' : 'image/jpeg'
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`
+
+  const payload = {
+    contents: [
       {
-        format,
-        name: 'receipt',
-        data: imageBase64,
+        parts: [
+          { inline_data: { mime_type: mimeType, data: imageBase64 } },
+          { text: PROMPT },
+        ],
       },
     ],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: RESPONSE_SCHEMA,
+      temperature: 0,
+    },
   }
 
   try {
-    const ocrRes = await fetch(invokeUrl, {
+    const geminiRes = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-OCR-SECRET': secretKey,
-      },
-      body: JSON.stringify(ocrPayload),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     })
 
-    if (!ocrRes.ok) {
-      const detail = await ocrRes.text()
-      res.status(502).json({ error: 'CLOVA OCR 호출 실패', detail })
+    if (!geminiRes.ok) {
+      const detail = await geminiRes.text()
+      res.status(502).json({ error: 'Gemini API 호출 실패', detail })
       return
     }
 
-    const data = (await ocrRes.json()) as {
-      images?: Array<{ receipt?: { result?: OcrReceiptResult } }>
+    const data = (await geminiRes.json()) as GeminiResponse
+
+    if (data.promptFeedback?.blockReason) {
+      res.status(422).json({
+        error: `요청이 차단되었습니다: ${data.promptFeedback.blockReason}`,
+      })
+      return
     }
-    const result = data.images?.[0]?.receipt?.result
-    if (!result) {
+
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!text) {
       res.status(422).json({ error: '영수증을 인식하지 못했습니다 (사진 품질을 확인하세요)' })
       return
     }
 
-    const totalAmount = parsePrice(readPriceText(result.totalPrice?.price))
-
-    let alcoholAmount = 0
-    for (const sub of result.subResults ?? []) {
-      for (const item of sub.items ?? []) {
-        const name = item.name?.text ?? ''
-        if (isAlcohol(name)) {
-          alcoholAmount += parsePrice(readPriceText(item.price?.price))
-        }
-      }
+    let parsed: { totalAmount?: unknown; alcoholAmount?: unknown }
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      res.status(502).json({ error: 'Gemini 응답 파싱 실패', detail: text })
+      return
     }
+
+    const totalAmount = Math.max(0, Math.floor(Number(parsed.totalAmount) || 0))
+    const alcoholAmount = Math.max(0, Math.floor(Number(parsed.alcoholAmount) || 0))
 
     res.status(200).json({ totalAmount, alcoholAmount })
   } catch (err) {
