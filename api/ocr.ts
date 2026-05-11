@@ -112,21 +112,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     },
   }
 
-  try {
-    const geminiRes = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+  const MAX_ATTEMPTS = 3
+  const RETRY_DELAY_MS = 500
+  let data: GeminiResponse | null = null
+  let lastFailureDetail: string | undefined
 
-    if (!geminiRes.ok) {
-      const detail = await geminiRes.text()
-      res.status(502).json({ error: 'Gemini API 호출 실패', detail })
-      return
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
     }
 
-    const data = (await geminiRes.json()) as GeminiResponse
+    try {
+      const geminiRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
 
+      if (geminiRes.ok) {
+        data = (await geminiRes.json()) as GeminiResponse
+        break
+      }
+
+      lastFailureDetail = await geminiRes.text()
+
+      if (geminiRes.status >= 400 && geminiRes.status < 500) {
+        res.status(502).json({ error: 'Gemini API 호출 실패', detail: lastFailureDetail })
+        return
+      }
+    } catch (err) {
+      lastFailureDetail = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  if (!data) {
+    res.status(502).json({
+      error: `Gemini API 호출 실패 (${MAX_ATTEMPTS}회 시도)`,
+      detail: lastFailureDetail,
+    })
+    return
+  }
+
+  try {
     if (data.promptFeedback?.blockReason) {
       res.status(422).json({
         error: `요청이 차단되었습니다: ${data.promptFeedback.blockReason}`,

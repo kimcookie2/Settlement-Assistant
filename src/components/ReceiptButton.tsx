@@ -32,8 +32,8 @@ export default function ReceiptButton({ roundId }: ReceiptButtonProps) {
       }
 
       applyReceipt(roundId, result.totalAmount, result.alcoholAmount)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '영수증 인식에 실패했습니다')
+    } catch {
+      alert('영수증 정보를 읽는데 실패했어요.')
     } finally {
       setLoading(false)
     }
