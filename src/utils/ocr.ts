@@ -1,8 +1,10 @@
 import { processReceiptImage } from './imageProcess'
 
 export interface OcrResult {
+  recognizable: boolean
   totalAmount: number
   alcoholAmount: number
+  alcoholNames: string[]
 }
 
 export async function recognizeReceipt(file: File): Promise<OcrResult> {

@@ -25,9 +25,16 @@ export default function ReceiptButton({ roundId }: ReceiptButtonProps) {
     setLoading(true)
     try {
       const result = await recognizeReceipt(file)
+
+      if (!result.recognizable) {
+        alert('금액이 확실하지 않을 정도로 훼손된 영수증 사진이면 판별이 불가능합니다.')
+        return
+      }
+
       applyReceipt(roundId, result.totalAmount, result.alcoholAmount)
-      if (result.totalAmount === 0) {
-        alert('영수증에서 금액을 인식하지 못했습니다. 사진을 다시 시도해보세요.')
+
+      if (result.alcoholNames.length > 0) {
+        alert(`술 항목으로 인식: ${result.alcoholNames.join(', ')}\n부담자를 선택해주세요.`)
       }
     } catch (err) {
       alert(err instanceof Error ? err.message : '영수증 인식에 실패했습니다')
@@ -39,7 +46,7 @@ export default function ReceiptButton({ roundId }: ReceiptButtonProps) {
   return (
     <>
       <Button size="sm" variant="secondary" onClick={openPicker} disabled={loading}>
-        {loading ? '인식 중…' : '📷 영수증'}
+        📷 영수증
       </Button>
       <input
         ref={inputRef}
@@ -48,6 +55,21 @@ export default function ReceiptButton({ roundId }: ReceiptButtonProps) {
         className="hidden"
         onChange={handleFile}
       />
+      {loading && <RecognizingOverlay />}
     </>
+  )
+}
+
+function RecognizingOverlay() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/60 backdrop-blur-sm"
+    >
+      <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/25 border-t-white" />
+      <p className="text-base font-medium text-white">영수증 인식 중…</p>
+      <p className="text-xs text-white/70">잠시만 기다려주세요 (보통 2~5초)</p>
+    </div>
   )
 }
