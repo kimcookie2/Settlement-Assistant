@@ -55,7 +55,7 @@ export default function SettlementTable() {
           <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200">
-              <th className="py-2 pr-4 text-left font-semibold text-gray-700">인원</th>
+              <th className="py-2 pr-4 text-left font-semibold text-gray-700 whitespace-nowrap">인원</th>
               {rounds.map((r) => (
                 <th key={r.id} className="px-3 py-2 text-right font-semibold text-gray-700 whitespace-nowrap">
                   {r.name}
@@ -67,7 +67,7 @@ export default function SettlementTable() {
           <tbody>
             {participants.map((p) => (
               <tr key={p.id} className="border-b border-gray-100 last:border-0">
-                <td className="py-2 pr-4 font-medium text-gray-800">{p.name}</td>
+                <td className="py-2 pr-4 font-medium text-gray-800 whitespace-nowrap">{p.name}</td>
                 {rounds.map((r) => {
                   const cell = matrix[p.id]?.[r.id]
                   return (
@@ -82,7 +82,7 @@ export default function SettlementTable() {
               </tr>
             ))}
             <tr className="border-t-2 border-gray-300 bg-gray-50">
-              <td className="py-2 pr-4 font-semibold text-gray-700">차수 합계</td>
+              <td className="py-2 pr-4 font-semibold text-gray-700 whitespace-nowrap">차수 합계</td>
               {rounds.map((r) => (
                 <td key={r.id} className="px-3 py-2 text-right font-semibold text-gray-700 whitespace-nowrap">
                   {formatKRW(totalByRound(matrix, r.id, participantIds))}
