@@ -15,6 +15,7 @@ interface StoreState {
   addItem: (roundId: string) => void
   removeItem: (roundId: string, itemId: string) => void
   updateItem: (roundId: string, itemId: string, updates: Partial<Omit<Item, 'id'>>) => void
+  applyReceipt: (roundId: string, totalAmount: number, alcoholAmount: number) => void
   reset: () => void
 }
 
@@ -113,6 +114,21 @@ export const useStore = create<StoreState>()(
                 item.id === itemId ? { ...item, ...updates } : item,
               ),
             }
+          }),
+        })),
+
+      applyReceipt: (roundId, totalAmount, alcoholAmount) =>
+        set((s) => ({
+          rounds: s.rounds.map((r) => {
+            if (r.id !== roundId) return r
+            const items =
+              alcoholAmount > 0
+                ? [
+                    ...r.items,
+                    { id: nanoid(), name: '술', amount: alcoholAmount, payerIds: [] },
+                  ]
+                : r.items
+            return { ...r, totalAmount, items }
           }),
         })),
 

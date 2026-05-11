@@ -3,6 +3,7 @@ import type { Round, Participant } from '../types'
 import { formatKRW } from '../utils/format'
 import Button from './ui/Button'
 import ItemRow from './ItemRow'
+import ReceiptButton from './ReceiptButton'
 
 interface RoundCardProps {
   round: Round
@@ -33,11 +34,12 @@ export default function RoundCard({ round, allParticipants, index }: RoundCardPr
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <input
-          className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium outline-none focus:border-indigo-400"
+          className="flex-1 min-w-0 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium outline-none focus:border-indigo-400"
           value={round.name}
           onChange={(e) => updateRound(round.id, { name: e.target.value })}
           placeholder={`${index + 1}차`}
         />
+        <ReceiptButton roundId={round.id} />
         <Button size="sm" variant="danger" onClick={() => removeRound(round.id)}>
           삭제
         </Button>
