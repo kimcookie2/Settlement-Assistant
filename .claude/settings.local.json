@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"C:\\\\projects\\\\정산도우미\"; Start-Process powershell -ArgumentList \"-NoProfile -Command `\"cd 'C:\\\\projects\\\\정산도우미'; pnpm dev`\"\" -WindowStyle Minimized)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:5173\" -TimeoutSec 5 -UseBasicParsing 2>&1)",
+      "PowerShell(Start-Sleep -Seconds 3; try { $r = Invoke-WebRequest -Uri \"http://localhost:5173\" -TimeoutSec 5 -UseBasicParsing; \"Status: $\\($r.StatusCode\\)\" } catch { \"Not running: $_\" })"
+    ]
+  }
+}
