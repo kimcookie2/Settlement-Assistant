@@ -32,10 +32,6 @@ export default function ReceiptButton({ roundId }: ReceiptButtonProps) {
       }
 
       applyReceipt(roundId, result.totalAmount, result.alcoholAmount)
-
-      if (result.alcoholNames.length > 0) {
-        alert(`술 항목으로 인식: ${result.alcoholNames.join(', ')}\n부담자를 선택해주세요.`)
-      }
     } catch (err) {
       alert(err instanceof Error ? err.message : '영수증 인식에 실패했습니다')
     } finally {
